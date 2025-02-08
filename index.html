@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Palm Oil Price Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='plotly-2.24.1.min.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Palm Oil Price Prediction</h1>
+        
+        <!-- Prediction Section -->
+        <div class="input-section">
+            <input type="date" id="dateInput" required>
+            <button onclick="predictPrice()">Predict</button>
+            <button onclick="retrainModel()" class="retrain-btn">Retrain Model</button>
+        </div>
+
+        <div id="result"></div>
+
+        <!-- Metrics Section -->
+        <div class="metrics">
+            <h2>Model Evaluation</h2>
+            <p>MAE: {{ metrics.MAE|round(2) }}</p>
+            <p>MAPE: {{ metrics.MAPE|round(2) }}%</p>
+            <p>RMSE: {{ metrics.RMSE|round(2) }}</p>
+        </div>
+
+        <!-- Visualization Section -->
+        <div id="historicalChart"></div>
+    </div>
+
+    <script>
+        // Initialize historical chart
+        const historicalData = {{ historical_data|tojson|safe }};
+        renderHistoricalChart();
+
+        function renderHistoricalChart() {
+            const trace1 = {
+                x: historicalData.dates,
+                y: historicalData.actual,
+                name: 'Actual Prices',
+                type: 'scatter'
+            };
+
+            const trace2 = {
+                x: historicalData.dates,
+                y: historicalData.predicted,
+                name: 'Predicted Prices',
+                type: 'scatter'
+            };
+
+            const layout = {
+                title: 'Historical Palm Oil Prices',
+                xaxis: { title: 'Date' },
+                yaxis: { title: 'Price' },
+                showlegend: true
+            };
+
+            Plotly.newPlot('historicalChart', [trace1, trace2], layout);
+        }
+
+        async function retrainModel() {
+            const resultDiv = document.getElementById('result');
+            try {
+                const response = await fetch('/retrain', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    resultDiv.innerHTML = `<p class="success">${data.status}. Page will refresh shortly...</p>`;
+                    setTimeout(() => location.reload(), 3000);
+                } else {
+                    resultDiv.innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Connection error</p>`;
+            }
+        }
+
+        // Prediction function
+    async function predictPrice() {
+        const date = document.getElementById('dateInput').value;
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '<p class="loading">Predicting...</p>';
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ date: date })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                resultDiv.innerHTML = `
+                    <div class="prediction-result">
+                        <h3>Predicted Price for ${date}:</h3>
+                        <p class="price">$${data.prediction}</p>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<p class="error">Connection error: ${error.message}</p>`;
+        }
+    }
+
+    </script>
+</body>
+</html>
